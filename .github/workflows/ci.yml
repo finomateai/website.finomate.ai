@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: Build dist
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Verify dist output
+        run: |
+          test -f dist/index.html
+          test -f dist/css/output.css
+          test -f dist/js/main.js
