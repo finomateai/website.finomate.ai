@@ -1,0 +1,12 @@
+{
+  "name": "finomateai-website",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i css/style.css -o css/output.css --minify",
+    "dev": "tailwindcss -i css/style.css -o css/output.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

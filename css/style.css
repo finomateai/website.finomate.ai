@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  .fade-in-section {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  }
+  .fade-in-section.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .text-gradient {
+    background: linear-gradient(135deg, #4F46E5, #8B5CF6, #4F46E5);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Bar grow animation — bars start at 0 height, grow on trigger */
+  .anim-bar {
+    transform: scaleY(0);
+    transform-origin: bottom;
+    transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .is-animated .anim-bar {
+    transform: scaleY(1);
+  }
+  /* Stagger delays for bars */
+  .anim-bar.delay-1 { transition-delay: 0.1s; }
+  .anim-bar.delay-2 { transition-delay: 0.2s; }
+  .anim-bar.delay-3 { transition-delay: 0.3s; }
+  .anim-bar.delay-4 { transition-delay: 0.4s; }
+  .anim-bar.delay-5 { transition-delay: 0.5s; }
+  .anim-bar.delay-6 { transition-delay: 0.6s; }
+  .anim-bar.delay-7 { transition-delay: 0.7s; }
+
+  /* Progress bar fill — starts at width 0 */
+  .anim-progress {
+    width: 0 !important;
+    transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .is-animated .anim-progress {
+    width: var(--target-width) !important;
+  }
+
+  /* Slide-up items (recommendation cards, metric cards) */
+  .anim-slide-up {
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+  }
+  .is-animated .anim-slide-up {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .anim-slide-up.delay-1 { transition-delay: 0.15s; }
+  .anim-slide-up.delay-2 { transition-delay: 0.3s; }
+  .anim-slide-up.delay-3 { transition-delay: 0.45s; }
+  .anim-slide-up.delay-4 { transition-delay: 0.6s; }
+
+  /* Scale-pop for badges and icons */
+  .anim-pop {
+    opacity: 0;
+    transform: scale(0);
+    transition: opacity 0.4s ease-out, transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .is-animated .anim-pop {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .anim-pop.delay-1 { transition-delay: 0.2s; }
+  .anim-pop.delay-2 { transition-delay: 0.4s; }
+  .anim-pop.delay-3 { transition-delay: 0.6s; }
+
+  /* Connector line grow */
+  .anim-line {
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .is-animated .anim-line {
+    transform: scaleX(1);
+  }
+  .anim-line.delay-1 { transition-delay: 0.3s; }
+
+  /* Number counter fade */
+  .anim-number {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  }
+  .is-animated .anim-number {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .anim-number.delay-1 { transition-delay: 0.1s; }
+  .anim-number.delay-2 { transition-delay: 0.2s; }
+  .anim-number.delay-3 { transition-delay: 0.3s; }
+}
