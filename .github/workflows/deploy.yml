@@ -1,0 +1,61 @@
+# .github/workflows/deploy.yml
+name: Deploy (S3 + CloudFront)
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: true
+
+env:
+  AWS_REGION: ap-southeast-2
+
+jobs:
+  deploy:
+    name: Build + Deploy to S3 + Invalidate CloudFront
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build dist
+        run: |
+          chmod +x ./build.sh
+          ./build.sh
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sanity check dist output
+        run: |
+          test -f dist/index.html || (echo "dist/index.html not found. Build failed or build.sh didn't copy files." && exit 1)
+          ls -la dist | head -n 50
+
+      - name: Sync dist to S3 (bucket root)
+        run: |
+          aws s3 sync ./dist "s3://${{ secrets.S3_BUCKET }}/" --delete
+
+      - name: Invalidate CloudFront cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*"
