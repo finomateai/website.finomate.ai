@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AWS Connector — FinomateAI</title>
+    <meta name="robots" content="noindex" />
+
+    <link rel="icon" type="image/svg+xml" href="images/favicon.svg" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet" />
+    <link rel="stylesheet" href="css/output.css" />
+    <link rel="stylesheet" href="css/portal.css" />
+    <script src="js/portal/config.js"></script>
+  </head>
+
+  <body class="font-sans bg-slate-50 min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-10">
+      <div
+        class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <a href="index.html" class="flex items-center gap-2">
+            <img
+              src="images/logo.svg"
+              alt="FinomateAI"
+              width="32"
+              height="32" />
+            <span class="font-black text-slate-900 tracking-tight"
+              >Finomate AI</span
+            >
+          </a>
+          <span class="hidden sm:inline text-slate-300">|</span>
+          <span class="hidden sm:inline text-sm text-slate-500"
+            >AWS Billing Connector</span
+          >
+        </div>
+        <button
+          id="sign-out-btn"
+          class="text-sm text-slate-500 hover:text-slate-700 transition flex items-center gap-1.5">
+          <svg
+            class="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Sign out
+        </button>
+      </div>
+    </header>
+
+    <!-- Page header -->
+    <div class="bg-white border-b border-slate-200">
+      <div class="max-w-4xl mx-auto px-6 py-8">
+        <h1 class="text-2xl font-bold text-slate-900">
+          Connect Your AWS Account
+        </h1>
+        <p class="mt-1 text-slate-500 text-sm max-w-xl">
+          Fill in the details below to replicate your AWS Cost and Usage Reports
+          (CUR 2.0) into Finomate.ai. Your data will appear in the dashboard
+          within 24 hours.
+        </p>
+      </div>
+    </div>
+
+    <!-- Main form -->
+    <main class="max-w-4xl mx-auto w-full px-6 py-8 space-y-6">
+      <!-- ================================================================
+         SECTION 1 — Company Info
+    ================================================================ -->
+      <section class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h2
+          class="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
+          <span
+            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold"
+            >1</span
+          >
+          Company Information
+        </h2>
+
+        <div class="grid sm:grid-cols-2 gap-5">
+          <div>
+            <label
+              for="companyName"
+              class="block text-sm font-medium text-slate-700 mb-1.5">
+              Company name <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="companyName"
+              type="text"
+              autocomplete="organization"
+              placeholder="e.g. acme-corp"
+              class="field w-full"
+              data-validate="companyName" />
+            <p class="mt-1 text-xs text-slate-400">
+              Lowercase, no spaces — used as your S3 bucket prefix
+            </p>
+          </div>
+
+          <div>
+            <label
+              for="email"
+              class="block text-sm font-medium text-slate-700 mb-1.5">
+              Billing contact email <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="email"
+              type="email"
+              autocomplete="email"
+              placeholder="billing@yourcompany.com"
+              class="field w-full" />
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+         SECTION 2 — CUR 2.0 Export Details
+    ================================================================ -->
+      <section class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h2
+          class="text-base font-semibold text-slate-900 mb-1 flex items-center gap-2">
+          <span
+            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold"
+            >2</span
+          >
+          CUR 2.0 Export Details
+        </h2>
+        <p class="text-xs text-slate-400 mb-5 ml-8">
+          Found in AWS Console → Billing → Data Exports → your CUR 2.0 export
+        </p>
+
+        <div class="grid sm:grid-cols-2 gap-5">
+          <div class="sm:col-span-2">
+            <label
+              for="bucketArn"
+              class="block text-sm font-medium text-slate-700 mb-1.5">
+              S3 Bucket ARN <span class="text-red-500">*</span>
+            </label>
+            <input
+              id="bucketArn"
+              type="text"
+              placeholder="arn:aws:s3:::my-cur-export-bucket"
+              class="field w-full"
+              data-validate="arn" />
+            <p id="bucketArn-error" class="mt-1 text-xs text-red-500 hidden">
+              Must be a bucket ARN — arn:aws:s3:::bucket-name (no path after the
+              bucket name)
+            </p>
+            <p class="mt-1 text-xs text-slate-400">
+              Bucket name and region are derived automatically
+            </p>
+          </div>
+
+          <div class="sm:col-span-2">
+            <label class="flex items-start gap-3 cursor-pointer">
+              <input
+                id="curFormatConfirm"
+                type="checkbox"
+                class="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+              <span class="text-sm text-slate-700">
+                I have configured CUR 2.0 with
+                <strong class="font-medium">FOCUS 1.0</strong>,
+                <strong class="font-medium">AWS Columns</strong>,
+                <strong class="font-medium">Parquet</strong> format, and
+                <strong class="font-medium">Daily</strong> granularity
+              </span>
+            </label>
+            <p class="mt-1.5 text-xs text-slate-400 ml-7">
+              Required. If your export uses a different format, Finomate.ai
+              cannot process the data.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+         SECTION 3 — Access Method
+    ================================================================ -->
+      <section class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h2
+          class="text-base font-semibold text-slate-900 mb-1 flex items-center gap-2">
+          <span
+            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold"
+            >3</span
+          >
+          Access Method
+        </h2>
+        <p class="text-xs text-slate-400 mb-5 ml-8">
+          Choose how Finomate.ai authenticates with your AWS account
+        </p>
+
+        <!-- Toggle -->
+        <div
+          class="flex rounded-xl border border-slate-200 p-1 gap-1 w-fit mb-6">
+          <button
+            id="toggle-assume"
+            type="button"
+            data-method="assumeRole"
+            class="method-toggle px-4 py-2 rounded-lg text-sm font-medium transition">
+            AssumeRole
+            <span
+              class="ml-1.5 text-xs bg-green-100 text-green-700 rounded-full px-2 py-0.5"
+              >Recommended</span
+            >
+          </button>
+          <button
+            id="toggle-direct"
+            type="button"
+            data-method="directIAM"
+            class="method-toggle px-4 py-2 rounded-lg text-sm font-medium transition">
+            Direct IAM Keys
+          </button>
+        </div>
+
+        <!-- AssumeRole fields -->
+        <div id="fields-assumeRole" class="space-y-5">
+          <div
+            class="bg-brand-50 border border-brand-200 rounded-xl p-4 text-xs text-brand-800">
+            <strong>How it works:</strong> You create two IAM roles in your AWS
+            account. Role A trusts Finomate.ai's AWS account ID. Role B trusts
+            the S3 service and handles live replication. No credentials are
+            stored — Finomate.ai never has long-lived access.
+          </div>
+          <div class="grid sm:grid-cols-2 gap-5">
+            <div>
+              <label
+                for="roleArn"
+                class="block text-sm font-medium text-slate-700 mb-1.5">
+                Role A ARN <span class="text-red-500">*</span>
+              </label>
+              <input
+                id="roleArn"
+                type="text"
+                placeholder="arn:aws:iam::123456789012:role/finomate-CrossAccount-Role"
+                class="field w-full cred-field"
+                data-validate="iamArn" />
+              <p class="mt-1 text-xs text-slate-400">
+                Trusts Finomate.ai's AWS account — used for cross-account access
+              </p>
+              <p id="roleArn-error" class="mt-1 text-xs text-red-500 hidden">
+                Must start with arn:aws:iam::
+              </p>
+            </div>
+            <div>
+              <label
+                for="roleBArn"
+                class="block text-sm font-medium text-slate-700 mb-1.5">
+                Role B ARN <span class="text-red-500">*</span>
+              </label>
+              <input
+                id="roleBArn"
+                type="text"
+                placeholder="arn:aws:iam::123456789012:role/finomate-Replication-Role"
+                class="field w-full cred-field"
+                data-validate="iamArn" />
+              <p class="mt-1 text-xs text-slate-400">
+                Trusts s3.amazonaws.com — used by S3 for live replication
+              </p>
+              <p id="roleBArn-error" class="mt-1 text-xs text-red-500 hidden">
+                Must start with arn:aws:iam::
+              </p>
+              <div
+                class="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+                <strong
+                  >Role B must allow writes to the destination bucket:</strong
+                ><br />
+                <code id="dest-bucket-arn" class="break-all">loading...</code
+                ><br />
+                <span class="text-blue-600"
+                  >Add this as the Resource for s3:ReplicateObject,
+                  s3:ReplicateDelete, s3:ReplicateTags, and
+                  s3:ObjectOwnerOverrideToBucketOwner in Role B's policy.</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Direct IAM fields (hidden by default) -->
+        <div id="fields-directIAM" class="space-y-5 hidden">
+          <div
+            class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-800">
+            <strong>Note:</strong> IAM access keys expire after 1 year and must
+            be rotated.
+          </div>
+          <div class="grid sm:grid-cols-2 gap-5">
+            <div>
+              <label
+                for="accessKeyId"
+                class="block text-sm font-medium text-slate-700 mb-1.5">
+                Access Key ID <span class="text-red-500">*</span>
+              </label>
+              <input
+                id="accessKeyId"
+                type="text"
+                placeholder="AKIAIOSFODNN7EXAMPLE"
+                class="field w-full cred-field font-mono" />
+              <p class="mt-1 text-xs text-slate-400">Starts with AKIA…</p>
+            </div>
+            <div>
+              <label
+                for="secretAccessKey"
+                class="block text-sm font-medium text-slate-700 mb-1.5">
+                Secret Access Key <span class="text-red-500">*</span>
+              </label>
+              <input
+                id="secretAccessKey"
+                type="password"
+                placeholder="••••••••••••••••••••••••••••••••••••••••"
+                class="field w-full cred-field font-mono" />
+              <p class="mt-1 text-xs text-slate-400">
+                Shown once in AWS — stored encrypted in Secrets Manager
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================================
+         SECTION 4 — Test Connection
+    ================================================================ -->
+      <section class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h2
+          class="text-base font-semibold text-slate-900 mb-1 flex items-center gap-2">
+          <span
+            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold"
+            >4</span
+          >
+          Test Connection
+        </h2>
+        <p class="text-xs text-slate-400 mb-5 ml-8">
+          Verifies live access to your S3 bucket before saving. Fill all fields
+          above to enable.
+        </p>
+
+        <div
+          class="flex flex-col sm:flex-row items-start sm:items-center gap-5">
+          <button
+            id="test-btn"
+            type="button"
+            disabled
+            class="flex items-center gap-2 px-5 py-2.5 rounded-lg border-2 border-brand-300 text-brand-700 font-semibold text-sm transition hover:bg-brand-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white shrink-0">
+            <svg
+              id="test-icon"
+              class="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <svg
+              id="test-spinner"
+              class="hidden w-4 h-4 animate-spin"
+              fill="none"
+              viewBox="0 0 24 24">
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4" />
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span id="test-btn-text">Test connection</span>
+          </button>
+
+          <!-- Check list -->
+          <div id="check-list" class="w-full space-y-2">
+            <div
+              class="check-item pending flex items-center gap-3 text-sm"
+              data-index="0">
+              <span class="dot w-2.5 h-2.5 rounded-full shrink-0"></span>
+              <span class="label text-slate-500"
+                >Assume cross-account role (Role A)</span
+              >
+            </div>
+            <div
+              class="check-item pending flex items-center gap-3 text-sm"
+              data-index="1">
+              <span class="dot w-2.5 h-2.5 rounded-full shrink-0"></span>
+              <span class="label text-slate-500">Bucket accessible</span>
+            </div>
+            <div
+              class="check-item pending flex items-center gap-3 text-sm"
+              data-index="2">
+              <span class="dot w-2.5 h-2.5 rounded-full shrink-0"></span>
+              <span class="label text-slate-500">Versioning enabled</span>
+            </div>
+            <div
+              class="check-item pending flex items-center gap-3 text-sm"
+              data-index="3">
+              <span class="dot w-2.5 h-2.5 rounded-full shrink-0"></span>
+              <span class="label text-slate-500">Read access confirmed</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Test result banner -->
+        <div
+          id="test-result"
+          class="hidden mt-4 px-4 py-3 rounded-lg flex items-center gap-2 text-sm font-medium"></div>
+      </section>
+
+      <!-- ================================================================
+         SECTION 5 — Submit
+    ================================================================ -->
+      <section class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h2
+          class="text-base font-semibold text-slate-900 mb-4 flex items-center gap-2">
+          <span
+            class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold"
+            >5</span
+          >
+          Confirm &amp; Connect
+        </h2>
+
+        <label class="flex items-start gap-3 cursor-pointer mb-6">
+          <input
+            id="ackCheckbox"
+            type="checkbox"
+            class="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
+          <span class="text-sm text-slate-700">
+            I confirm I have permission to share billing data from this AWS
+            account and that the information provided above is accurate.
+          </span>
+        </label>
+
+        <button
+          id="submit-btn"
+          type="button"
+          disabled
+          class="flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-r from-brand-600 to-violet-600 text-white font-semibold text-sm hover:from-brand-700 hover:to-violet-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed">
+          <svg
+            id="submit-icon"
+            class="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <svg
+            id="submit-spinner"
+            class="hidden w-4 h-4 animate-spin"
+            fill="none"
+            viewBox="0 0 24 24">
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4" />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span id="submit-btn-text">Connect AWS Account</span>
+        </button>
+        <p class="mt-2 text-xs text-slate-400">
+          This will start a historical data copy, and enable live replication.
+        </p>
+
+        <!-- Submit progress -->
+        <div
+          id="submit-progress"
+          class="hidden mt-5 space-y-2 border-t border-slate-100 pt-5">
+          <p
+            class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
+            Setup progress
+          </p>
+          <div id="progress-steps" class="space-y-2"></div>
+        </div>
+
+        <!-- Submit result -->
+        <div id="submit-result" class="hidden mt-5"></div>
+      </section>
+    </main>
+
+    <script src="js/portal/aws-connect.js"></script>
+  </body>
+</html>
