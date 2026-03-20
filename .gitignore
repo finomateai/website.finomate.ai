@@ -1,3 +1,7 @@
 node_modules/
 dist/
 .DS_Store
+/backend/sam-env
+/backend/.aws-sam
+/backend/.aws-sam
+.venv

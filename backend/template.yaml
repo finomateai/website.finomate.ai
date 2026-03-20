@@ -1,0 +1,348 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Finomate - AWS Billing Connector
+
+Parameters:
+  Users:
+    Type: String
+    NoEcho: true
+    Description: >
+      JSON array of portal users. Example:
+      [{"id":"usr1","name":"admin","password":"<strong-password>"},
+       {"id":"usr2","name":"analyst","password":"<strong-password>"}]
+  JwtSecret:
+    Type: String
+    NoEcho: true
+  AllowedOrigin:
+    Type: String
+    Default: ""
+    Description: CORS allowed origin — must be set explicitly (e.g. https://portal.finomate.ai)
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+    Environment:
+      Variables:
+        ALLOWED_ORIGIN: !Ref AllowedOrigin
+
+Resources:
+  # -----------------------------------------------------------------------
+  # API Gateway
+  # -----------------------------------------------------------------------
+  finomateApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: finomate-api
+      StageName: api
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 25
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Requested-With'"
+        AllowOrigin: !Sub "'${AllowedOrigin}'"
+        MaxAge: "'600'"
+      Auth:
+        DefaultAuthorizer: JwtAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          JwtAuthorizer:
+            FunctionArn: !GetAtt AuthorizerFunction.Arn
+            FunctionPayloadType: REQUEST
+            Identity:
+              Headers:
+                - Authorization
+            AuthorizerResultTtlInSeconds: 300
+
+  # -----------------------------------------------------------------------
+  # Login Lambda — PUBLIC (no auth)
+  # -----------------------------------------------------------------------
+  LoginFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: finomate-login
+      Handler: handler.lambda_handler
+      CodeUri: lambdas/login/
+      Description: Validates credentials from USERS JSON array and issues a JWT
+      Environment:
+        Variables:
+          USERS: !Ref Users
+          JWT_SECRET: !Ref JwtSecret
+      Events:
+        LoginPost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref finomateApi
+            Path: /v1/login
+            Method: POST
+            Auth:
+              Authorizer: NONE
+
+  # -----------------------------------------------------------------------
+  # Authorizer Lambda
+  # -----------------------------------------------------------------------
+  AuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: finomate-authorizer
+      Handler: handler.lambda_handler
+      CodeUri: lambdas/authorizer/
+      Description: Validates JWT on all protected routes
+      Environment:
+        Variables:
+          JWT_SECRET: !Ref JwtSecret
+
+  AuthorizerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt AuthorizerFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${finomateApi}/*/*"
+
+  # -----------------------------------------------------------------------
+  # Test Connection Lambda — PROTECTED
+  # -----------------------------------------------------------------------
+  TestConnectionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: finomate-test-connection
+      Handler: handler.lambda_handler
+      CodeUri: lambdas/test_connection/
+      Description: Runs 4-check live connectivity test against client bucket
+      Timeout: 30
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        TestPost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref finomateApi
+            Path: /v1/aws-connect/test
+            Method: POST
+
+  # -----------------------------------------------------------------------
+  # Submit Connector Lambda — PROTECTED
+  # -----------------------------------------------------------------------
+  SubmitConnectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: finomate-submit-connector
+      Handler: handler.lambda_handler
+      CodeUri: lambdas/submit_connector/
+      Description: Orchestrates full 5-step connector setup
+      Timeout: 900
+      MemorySize: 512
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          BATCH_OPERATIONS_ROLE_ARN: !GetAtt BatchOperationsRole.Arn
+          DESTINATION_ACCOUNT_ID: !Sub "${AWS::AccountId}"
+      Events:
+        SubmitPost:
+          Type: Api
+          Properties:
+            RestApiId: !Ref finomateApi
+            Path: /v1/aws-connect/submit
+            Method: POST
+
+  # -----------------------------------------------------------------------
+  # Batch Status Lambda — triggered by EventBridge on job completion
+  # -----------------------------------------------------------------------
+  BatchStatusFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: finomate-batch-status
+      Handler: handler.lambda_handler
+      CodeUri: lambdas/batch_status/
+      Description: Updates _batch/status.json when S3 Batch Operations job completes
+      Timeout: 60
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        BatchOperationsEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - aws.s3
+              detail-type:
+                - "S3 Batch Operations Job State Change"
+              detail:
+                status:
+                  - Complete
+                  - Failed
+
+  # -----------------------------------------------------------------------
+  # Lambda Execution Role (shared by Test, Submit, BatchStatus)
+  # -----------------------------------------------------------------------
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: finomate-lambda-execution-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: finomateLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: AssumeClientRoles
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource: "*"
+              - Sid: S3BucketManagement
+                Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:PutBucketVersioning
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketOwnershipControls
+                  - s3:PutBucketReplication
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:GetBucketLocation
+                  - s3:GetBucketVersioning
+                  - s3:ListBuckets
+                  - s3:GetBucketReplication
+                Resource: "*"
+              - Sid: S3ObjectAccess
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::*-billing-data"
+                  - !Sub "arn:aws:s3:::*-billing-data/*"
+              - Sid: S3BatchOperations
+                Effect: Allow
+                Action: s3:CreateJob
+                Resource: "*"
+              - Sid: PassBatchRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt BatchOperationsRole.Arn
+              - Sid: SecretsManager
+                Effect: Allow
+                Action:
+                  - secretsmanager:CreateSecret
+                  - secretsmanager:PutSecretValue
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:/finomate/*"
+
+  # -----------------------------------------------------------------------
+  # S3 Batch Operations IAM Role
+  # -----------------------------------------------------------------------
+  BatchOperationsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: finomate-batch-operations-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: batchoperations.s3.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BatchOperationsPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetBucketVersioning
+                  - s3:PutBucketVersioning
+                Resource:
+                  - !Sub "arn:aws:s3:::*-billing-data"
+                  - !Sub "arn:aws:s3:::*-billing-data/*"
+
+  # -----------------------------------------------------------------------
+  # GatewayResponses — adds CORS headers to API Gateway error responses
+  # (auth failures, throttles, etc.) so the browser doesn't see a CORS error
+  # on top of the real error.
+  # -----------------------------------------------------------------------
+  GatewayResponseDefault4XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseType: DEFAULT_4XX
+      RestApiId: !Ref finomateApi
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+
+  GatewayResponseDefault5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseType: DEFAULT_5XX
+      RestApiId: !Ref finomateApi
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+
+  GatewayResponseAccessDenied:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseType: ACCESS_DENIED
+      RestApiId: !Ref finomateApi
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+
+  GatewayResponseUnauthorized:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      ResponseType: UNAUTHORIZED
+      RestApiId: !Ref finomateApi
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub "'${AllowedOrigin}'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+
+Outputs:
+  ApiEndpoint:
+    Description: API Gateway base URL — use this in frontend config
+    Value: !Sub "https://${finomateApi}.execute-api.${AWS::Region}.amazonaws.com/api"
+    Export:
+      Name: finomateApiEndpoint
+
+  LoginUrl:
+    Description: Login endpoint
+    Value: !Sub "https://${finomateApi}.execute-api.${AWS::Region}.amazonaws.com/api/v1/login"
+
+  TestConnectionUrl:
+    Description: Test connection endpoint
+    Value: !Sub "https://${finomateApi}.execute-api.${AWS::Region}.amazonaws.com/api/v1/aws-connect/test"
+
+  SubmitConnectorUrl:
+    Description: Submit connector endpoint
+    Value: !Sub "https://${finomateApi}.execute-api.${AWS::Region}.amazonaws.com/api/v1/aws-connect/submit"
+
+  BatchOperationsRoleArn:
+    Description: ARN of the Batch Operations IAM role — needed for submit connector
+    Value: !GetAtt BatchOperationsRole.Arn
+    Export:
+      Name: finomateBatchOperationsRoleArn

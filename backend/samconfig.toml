@@ -1,0 +1,31 @@
+# SAM CLI configuration for Cloud Ctrl
+# Run: sam build && sam deploy --guided  (first time)
+# Run: sam build && sam deploy           (subsequent deployments)
+
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "finomate-backend"
+region = "ap-southeast-2"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = true
+resolve_s3 = true
+region = "ap-southeast-2"
+# IMPORTANT: Do NOT commit real values here.
+# Pass secrets via environment or --parameter-overrides on the CLI:
+#
+#   sam deploy \
+#   --parameter-overrides \
+#      Users='[{"client_id":"usr1","name":"admin","password":"<strong-password>"},{"client_id":"usr2","name":"analyst","password":"<strong-password>"}]' \
+#      JwtSecret=$(openssl rand -hex 32) \
+#      AllowedOrigin=https://portal.finomateai.com
+
+s3_prefix = "finomate"
+image_repositories = []
